@@ -133,6 +133,8 @@ enum RCTPlayerOperations {
         let group:AVMediaSelectionGroup! = player?.currentItem?.asset.mediaSelectionGroup(forMediaCharacteristic: characteristic)
         var mediaOption:AVMediaSelectionOption!
         
+        guard group != nil else { return }
+        
         if (type == "disabled") {
             // Do nothing. We want to ensure option is nil
         } else if (type == "language") || (type == "title") {
