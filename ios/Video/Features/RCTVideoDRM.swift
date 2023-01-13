@@ -8,9 +8,18 @@ struct RCTVideoDRM {
         licenseServer: String,
         spcData: Data?,
         contentId: String,
-        headers: [String:Any]?
+        headers: [String:Any]?,
+        base64License:Bool?
     ) -> Promise<Data> {
-        let request = createLicenseRequest(licenseServer:licenseServer, spcData:spcData, contentId:contentId, headers:headers)
+        let request: URLRequest
+        let _base64License:Bool = base64License ?? true // Default behavior is to handle request and response in base64
+        
+        if (_base64License == true) {
+            request = createLicenseRequest(licenseServer:licenseServer, spcData:spcData, contentId:contentId, headers:headers)
+          
+        } else {
+            request = createBinaryLicenseRequest(licenseServer:licenseServer, spcData:spcData, contentId:contentId, headers:headers)
+        }
         
         return Promise<Data>(on: .global()) { fulfill, reject in
             let postDataTask = URLSession.shared.dataTask(with: request as URLRequest, completionHandler:{ (data:Data!,response:URLResponse!,error:Error!) in
@@ -28,12 +37,22 @@ struct RCTVideoDRM {
                     return
                 }
                 
-                guard data != nil, let decodedData = Data(base64Encoded: data, options: []) else {
-                    reject(RCTVideoErrorHandler.noDataFromLicenseRequest)
-                    return
+                if (_base64License == true) {
+                    guard data != nil, let decodedData = Data(base64Encoded: data, options: []) else {
+                        reject(RCTVideoErrorHandler.noDataFromLicenseRequest)
+                        return
+                    }
+                    
+                    fulfill(decodedData)
+                } else {
+                    guard data != nil else {
+                        reject(RCTVideoErrorHandler.noDataFromLicenseRequest)
+                        return
+                    }
+                    
+                    fulfill(data)
                 }
                 
-                fulfill(decodedData)
             })
             postDataTask.resume()
         }
@@ -62,6 +81,29 @@ struct RCTVideoDRM {
         let post = String(format:"spc=%@&%@", spcUrlEncoded as! CVarArg, contentId)
         let postData = post.data(using: String.Encoding.utf8, allowLossyConversion:true)
         request.httpBody = postData
+        
+        return request
+    }
+    
+    static func createBinaryLicenseRequest(
+        licenseServer: String,
+        spcData: Data?,
+        contentId: String,
+        headers: [String:Any]?
+    ) -> URLRequest {
+        var request = URLRequest(url: URL(string: licenseServer)!)
+        request.httpMethod = "POST"
+        
+        if let headers = headers {
+            for item in headers {
+                guard let key = item.key as? String, let value = item.value as? String else {
+                    continue
+                }
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.httpBody = spcData
         
         return request
     }
@@ -104,8 +146,8 @@ struct RCTVideoDRM {
 
             var certificateData:Data?
             do {
-               certificateData = try Data(contentsOf: certificateURL)
-                if (base64Certificate != nil) {
+                certificateData = try Data(contentsOf: certificateURL)
+                if (base64Certificate == true) {
                     certificateData = Data(base64Encoded: certificateData! as Data, options: .ignoreUnknownCharacters)
                 }
             } catch {}
@@ -136,7 +178,7 @@ struct RCTVideoDRM {
             }
     }
     
-    static func handleInternalGetLicense(loadingRequest: AVAssetResourceLoadingRequest, contentId:String?, licenseServer:String?, certificateUrl:String?, base64Certificate:Bool?, headers: [String:Any]?) -> Promise<Data> {
+    static func handleInternalGetLicense(loadingRequest: AVAssetResourceLoadingRequest, contentId:String?, licenseServer:String?, certificateUrl:String?, base64Certificate:Bool?, headers: [String:Any]?, base64License:Bool?) -> Promise<Data> {
         let url = loadingRequest.request.url
         
         guard let contentId = contentId ?? url?.absoluteString.replacingOccurrences(of: "skd://", with:"") else {
@@ -161,7 +203,8 @@ struct RCTVideoDRM {
                     licenseServer: licenseServer,
                     spcData: spcData,
                     contentId: contentId,
-                    headers: headers
+                    headers: headers,
+                    base64License: base64License
                 )
             }
     }

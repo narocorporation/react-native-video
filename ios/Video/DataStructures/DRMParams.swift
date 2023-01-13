@@ -5,6 +5,7 @@ struct DRMParams {
     let contentId: String?
     let certificateUrl: String?
     let base64Certificate: Bool?
+    let base64License: Bool?
     
     let json: NSDictionary?
     
@@ -17,6 +18,7 @@ struct DRMParams {
             self.certificateUrl = nil
             self.base64Certificate = nil
             self.headers = nil
+            self.base64License = nil
             return
         }
         self.json = json
@@ -26,5 +28,6 @@ struct DRMParams {
         self.certificateUrl = json["certificateUrl"] as? String
         self.base64Certificate = json["base64Certificate"] as? Bool
         self.headers = json["headers"] as? Dictionary<String,Any>
+        self.base64License = json["base64License"] as? Bool
     }
 }
